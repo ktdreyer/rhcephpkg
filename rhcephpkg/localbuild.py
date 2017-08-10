@@ -1,3 +1,4 @@
+import errno
 import math
 from multiprocessing import cpu_count
 import os
@@ -6,6 +7,40 @@ import subprocess
 from tambo import Transport
 import rhcephpkg.log as log
 import rhcephpkg.util as util
+
+
+def setup_pbuilder_config():
+    pbuilderrc('COMPONENTS', 'main universe')
+
+
+def pbuilderrc(setting, value):
+    """ Ensure a particular setting is present in ~/.pbuilderrc. """
+    rcfile = os.path.expanduser('~/.pbuilderrc')
+    newlines = []
+    try:
+        with open(rcfile) as f:
+            lines = f.readlines()
+    except IOError as e:
+        if e.errno != errno.ENOENT:
+            raise
+        lines = []
+    found = False
+    for line in lines:
+        try:
+            key, val = line.split('=')
+        except ValueError:
+            # Not a key=value line. Maybe a # comment
+            newlines.append(line)
+            continue
+        if key.strip() == setting:
+            found = True
+            newlines.append('%s="%s"\n' % (setting, value))
+        else:
+            newlines.append(line)
+    if not found:
+        newlines.append('%s="%s"\n' % (setting, value))
+    with open(rcfile, 'w') as f:
+        f.write(''.join(newlines))
 
 
 def setup_pbuilder_cache(pbuilder_cache, distro):
@@ -109,6 +144,7 @@ Options:
         j_arg = self._get_j_arg(cpu_count())
         pbuilder_cache = '/var/cache/pbuilder/base-%s-amd64.tgz' % distro
 
+        setup_pbuilder_config()
         setup_pbuilder_cache(pbuilder_cache, distro)
 
         util.setup_pristine_tar_branch()
